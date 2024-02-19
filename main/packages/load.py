@@ -1,5 +1,5 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -38,7 +38,7 @@ def data_viz(df, title):
 
 def transform_yoy_rate(df):
     """
-    Transform HICP into year-on-year inflation rate
+    Transform HICP into year-on-year inflation rate, using for HICP all and 4 sub categories
     """
     df.loc[:, 'last_y'] = df.iloc[:, 0].shift(12)
     df.loc[:, 'yoy_rate'] = (df.iloc[:, 0]/df.loc[:, 'last_y'] - 1) * 100
@@ -46,6 +46,9 @@ def transform_yoy_rate(df):
     return df['yoy_rate']
 
 def plots(data, lags=None):
+    """
+    Plot ACF and PACF for time series
+    """
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
     acf  = plt.subplot2grid(layout, (0, 0))
@@ -57,6 +60,9 @@ def plots(data, lags=None):
     plt.tight_layout()
 
 def dftest(timeseries):
+    """
+    ADF test for timeseries
+    """
     dftest = ts.adfuller(timeseries,) #call function adfuller 
     dfoutput = pd.Series(dftest[0:4],  
                          index=['Test Statistic','p-value','Lags Used','Observations Used'])
