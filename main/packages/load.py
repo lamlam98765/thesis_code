@@ -27,13 +27,18 @@ def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8):
     return df
     
 
-def data_viz(df, title):
+def data_viz(df, title = None, add_line = False):
     """
     Visualising time series
     """
     plt.figure(figsize = (12, 4))
-    plt.plot(df)
+    if add_line:
+        plt.plot(df,linewidth = 3)
+        plt.axhline(y = 0)
+    else:
+        plt.plot(df)
     plt.title(title)
+
     plt.show()
 
 def transform_yoy_rate(df):
