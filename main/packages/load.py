@@ -9,23 +9,26 @@ from statsmodels.graphics.tsaplots import plot_acf
 
 
 
-def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8):
+def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8, subset = False):
     """
     Load excel file of HICP all-item and 4 sub-groups
     """
     data = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skiprows)
+    if subset: 
+        data.dropna(axis = 1, how= 'all', inplace=True)
     df = data.iloc[1, :].to_frame().reset_index()
     df.columns = df.iloc[0]
     df = df[1:]
     df.rename(columns= {'TIME': 'date', 'Germany': name}, inplace=True)
-    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    df['date'] = df['date'] + pd.offsets.MonthEnd(0)
+    df.dropna(subset=['date'], inplace=True)
     print(f"Data length: {df.shape[0]} rows from {df.iloc[0, 0]} to {df.iloc[-1, 0]}")
     df.set_index('date', inplace=True)
-    df = df.asfreq('MS')
+    df = df.asfreq('M')
     df[df.columns[0]] = df.loc[:, name].astype('float')
     print(df.head(5))
     return df
-    
 
 def data_viz(df, title = None, add_line = False):
     """
