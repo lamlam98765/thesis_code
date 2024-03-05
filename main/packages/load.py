@@ -7,7 +7,7 @@ import statsmodels.tsa.stattools as ts
 from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
 
-end_date = '2022-12-31'
+train_test_split_date = '2015-12-31'
 
 def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8, subset = False):
     """
