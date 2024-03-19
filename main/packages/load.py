@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 from sklearn.preprocessing import StandardScaler
@@ -14,9 +15,20 @@ from statsmodels.graphics.tsaplots import plot_acf
 
 train_test_split_date = '2015-12-31'
 
-def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8, subset = False):
+def load_excel(file_path: str, name: str, sheet_name = 'Sheet 1', skiprows = 8, subset = False) -> pd.Series: 
     """
-    Load excel file of HICP all-item and 4 sub-groups
+    Load Excel file containing HICP (Harmonized Index of Consumer Prices) all and 4 sub-group, clean up the data.
+    
+    Parameters:
+    - file_path (str): The path to the Excel file.
+    - name (str): Name of the series, to distinguish between different series.
+    - sheet_name (str, optional): Name of the Excel sheet to load. Default is 'Sheet 1'.
+    - skiprows (int, optional): Number of rows to skip from the beginning of the Excel sheet. Default is 8.
+    - subset (bool, optional): If True, handle HICP subset, else handle HICP for all.
+    
+    Returns:
+    - pd.Series: A pandas Series containing the cleaned up data.
+
     """
     data = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skiprows)
     if subset: 
@@ -35,9 +47,15 @@ def load_excel(file_path, name, sheet_name = 'Sheet 1', skiprows = 8, subset = F
     print(df.head(5))
     return df
 
-def data_viz(df, title = None, add_line = False):
+def data_viz(df: pd.Series, title = None, add_line = False):
     """
-    Visualising time series
+    Lineplot time series.
+
+    Parameters:
+    - df (pd.Series): time series data.
+    - title (str, optional): title of plot.
+    - add_line (bool, optional): if True, add a horizonal line y = 0
+
     """
     plt.figure(figsize = (12, 4))
     if add_line:
@@ -49,18 +67,23 @@ def data_viz(df, title = None, add_line = False):
 
     plt.show()
 
-def transform_yoy_rate(df):
+def transform_yoy_rate(df: pd.DataFrame) -> pd.Series:
     """
-    Transform HICP into year-on-year inflation rate, using for HICP all and 4 sub categories
+    Transform HICP into year-on-year inflation rate (for HICP all and 4 sub categories)
+
     """
     df.loc[:, 'last_y'] = df.iloc[:, 0].shift(12)
     df.loc[:, 'yoy_rate'] = (df.iloc[:, 0]/df.loc[:, 'last_y'] - 1) * 100
     df = df.dropna(subset='yoy_rate')
     return df['yoy_rate']
 
-def plots(data, lags=None):
+def plots_acf_pacf(data: pd.Series, lags=None):
     """
-    Plot ACF and PACF for time series
+    Plot ACF and PACF for time series.
+
+    Parameters:
+    - data (pd.Series): time series
+    - lags (int, optional): maximum lags
     """
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
@@ -74,7 +97,7 @@ def plots(data, lags=None):
 
 def dftest(timeseries):
     """
-    ADF test for timeseries
+    Conduct ADF test for timeseries.
     """
     dftest = ts.adfuller(timeseries,) #call function adfuller 
     dfoutput = pd.Series(dftest[0:4],  
@@ -179,14 +202,19 @@ class RecursiveForecast():
         final_forecast = self.chop_forecast_to_fit(forecast_df, y_test=y_test)
         return final_forecast
 
-def save_forecast(category, forecast_result_df, cat_file_path):
+def save_forecast(forecast_result_df, cat_file_path, category = None):
     """
     Save the forecast into main file for comparision later
-    If there's no file created -> create file and save it, otherwise import file and concat new!
+    - If there's no file created -> create file and save it, 
+    - Else: import main file as a DataFrame, 
+    if there's not yet results about that specific method, add it in
+    otherwiser overwrite new results into dataframe.
     """
-    for col in forecast_result_df.columns:
-        col = col + category
-
+    if category is not None:
+        for col in forecast_result_df.columns:
+            col = col + category
+    else: 
+        pass
     if not os.path.isfile(cat_file_path):
     # File doesn't exist, create it and save the DataFrame
         forecast_result_df.to_csv(cat_file_path, index=False)
@@ -194,15 +222,18 @@ def save_forecast(category, forecast_result_df, cat_file_path):
     else:
         dataframe = pd.read_csv(cat_file_path)
         missing_columns = [col for col in forecast_result_df.columns if col not in dataframe.columns]
-        if missing_columns:
-            concat_df = pd.concat([dataframe, forecast_result_df], axis= 1)
-            concat_df.to_csv(cat_file_path, index=False)
+
+        if not missing_columns:
+            dataframe.drop(columns=forecast_result_df.columns, inplace=True)
+        concat_df = pd.concat([dataframe, forecast_result_df], axis= 1)
+        concat_df.to_csv(cat_file_path, index=False)
+
 
     
 ### not done yet:
 ### Step 1: Get all necessary data:
 
-def import_data_all(hicp_all_path, hicp_class_path, hicp_cat_path):
+def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str):
     """
     Import all necessary data
     
@@ -225,19 +256,24 @@ def split_into_category(category, HICP_class, HICP_monthly):
     """
     Take the subset of that specific categories
     """
-    cat_col = HICP_class.loc[:, HICP_class.iloc[0, :] == category].columns
+    if category == 'Food':
+        cat_col = HICP_class.loc[:, HICP_class.iloc[0, :] == category].columns
+    else:
+        cat_col = HICP_class.loc[:, HICP_class.iloc[1, :] == category].columns
+
     print(f'Number of items in {category} group: ', len(cat_col))
 
     cat_df = HICP_monthly[cat_col]
     cat_df.fillna(0, inplace=True)
     return cat_df
 
-def split_train_set(cat_df, HICP_cat, train_test_split_date = train_test_split_date):
+def split_train_set(cat_df, HICP_cat,h ,train_test_split_date = train_test_split_date):
     """
     Get the training set for hyperparameter tuning
     """
-    X_cat_train = cat_df[cat_df.index < train_test_split_date]
-    y_cat_train = HICP_cat[HICP_cat.index <= train_test_split_date][1:]
+    X_cat_train = cat_df[cat_df.index <= train_test_split_date][:-h]
+    y_cat_train = HICP_cat[HICP_cat.index <= train_test_split_date][h:]
+    print(f'Horizon: {h}')
     print(f'Training predictor period: {X_cat_train.index[0]} to {X_cat_train.index[-1]}')
     print(f'Training dependent variable period: {y_cat_train.index[0]} to {y_cat_train.index[-1]}')
     return X_cat_train, y_cat_train
@@ -247,7 +283,7 @@ def split_train_set(cat_df, HICP_cat, train_test_split_date = train_test_split_d
 
 # 2.1. Ridge and Lasso, manual fine tuning:
 
-def tuning_gridsearchcv(reg, grid_space, X_train, y_train, cv = 5, test_size = 6):
+def tuning_gridsearchcv(reg, grid_space, X_train, y_train, cv = 6, test_size = 12, scoring = 'neg_root_mean_squared_error'):
     """
     Tuning using GridSearchCV
     for Ridge and Lasso
@@ -265,7 +301,7 @@ def tuning_gridsearchcv(reg, grid_space, X_train, y_train, cv = 5, test_size = 6
         'regression__alpha': grid_space
     }
 
-    grid = GridSearchCV(pipe, n_jobs=1, param_grid=param_grid, cv = tscv)
+    grid = GridSearchCV(pipe, n_jobs=1, param_grid=param_grid, cv = tscv, scoring= scoring)
     grid.fit(X_train, y_train)
 
     return grid.best_params_
