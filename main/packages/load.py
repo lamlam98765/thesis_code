@@ -181,7 +181,8 @@ class RecursiveForecast():
             print('-------------------------------------------------------')
         return forecast_df
 
-    def chop_forecast_to_fit(self, forecast_df, y_test):
+    @staticmethod
+    def chop_forecast_to_fit(forecast_df, y_test):
         """
         Chop the forecast to fit
         """
