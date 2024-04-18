@@ -14,7 +14,12 @@ from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
 
 train_test_split_date = '2015-12-31'
+max_X_date = '2022-12-31'
 
+### For general code using by all models:
+
+
+### Preprocessing data:
 def load_excel(file_path: str, name: str, sheet_name = 'Sheet 1', skiprows = 8, subset = False) -> pd.Series: 
     """
     Load Excel file containing HICP (Harmonized Index of Consumer Prices) all and 4 sub-group, clean up the data.
@@ -111,11 +116,14 @@ def dftest(timeseries):
         print('Time series is not stationary!')
 
 class RecursiveForecast():
-    def __init__(self, X: pd.DataFrame, y: pd.Series, max_horizon: int, model, hyperparameter) -> None:
+    """
+    Create forcast for 1 horizon
+    """
+    def __init__(self, X: pd.DataFrame, y: pd.Series, h: int, model, hyperparameter) -> None:
         self.X = X
         self.y = y
         self.split_date = train_test_split_date
-        self.max_horizon = max_horizon
+        self.h = h
         self.model = model
         self.hyperparameter = hyperparameter
 
@@ -126,11 +134,14 @@ class RecursiveForecast():
         Split the train and test set based on the predetermined date
 
         """
-        X_train = self.X[self.X.index < self.split_date] # as yt = f(Xt-1)
-        X_test = self.X[self.X.index >= self.split_date].iloc[:-1, :]
-        y_train, y_test = self.y[self.y.index <= self.split_date][1:], self.y[self.y.index > self.split_date]
-        N, T = len(X_train), len(X_test)
+        X_train = self.X[self.X.index <= self.split_date].iloc[:-self.h, :] # as yt = f(Xt-1)
+        X_test = self.X[~self.X.index.isin(X_train.index)]
 
+        y_train = self.y[self.y.index <= self.split_date][self.h:]
+        y_test = self.y[self.y.index > self.split_date]
+        N, T = len(X_train), len(X_test)
+        
+        print(f'Horizon: {self.h}')
         print(f'Training predictor period: {X_train.index[0]} to {X_train.index[-1]}')
         print(f'Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}')
         print(f'Test predictor period: {X_test.index[0]} to {X_test.index[-1]}')
@@ -138,70 +149,63 @@ class RecursiveForecast():
         print('--------------------------------------------')
 
         return N, T, y_test
-    
-    def create_forecast_df(self, N: int) -> pd.DataFrame:
-        """
-        Create the forecast DataFrame based on the horizons
-        Note: the first period in this df = last X_train - max_horizon + 1 so the furtherest forecast = first day of y_test
-        Here: 2015-10 with 3 horizons => h_3 = 2016-01
-        We'll chop it down later
-        """
-        column_names = [f"{self.model.__name__}_h_{i}" for i in range(1, self.max_horizon + 1)]
-        index = self.X.iloc[N - self.max_horizon +1:, :].index
 
-        # Create a DataFrame:
-        init_forecast_df = pd.DataFrame(columns=column_names, index=index)
-        
-        return init_forecast_df
-    
+    def generate_forecast(self, N: int, T: int) -> pd.DataFrame:
+        y_pred_series = []
+        for i in range(1, T): 
+            X_train = self.X.iloc[:N + i, :]
+            y_train = self.y[self.h:N+self.h+i, :]
 
-    def generate_forecast(self, forecast_df: pd.DataFrame, N: int, T: int) -> pd.DataFrame:
+            X_test = self.X.iloc[N+i+1, :]
 
-        for i in range(1, T + self.max_horizon): #
-            X_train = self.X.iloc[:N - self.max_horizon + i +1, :]
-            y_train = self.y[1:N - self.max_horizon + i + 2]
-            # y_t = f(Xt-1)
-
-            X_test = self.X.iloc[N - self.max_horizon +1+ i: N + 1+ i]
-            # forecast next 3 period as horizon 1, 2, 3
+            # forecast horizon h:
             print(f'Predictor training period: {X_train.index[0]} to {X_train.index[-1]}')
             print(f'Forecast target period: {y_train.index[0]} to {y_train.index[-1]}')
             print(f'Predictor test period: {X_test.index}')
 
             model = self.model(self.hyperparameter)
             model.fit(X_train, y_train)
-            y_pred = model.predict(X_test).ravel()
+            y_pred = model.predict(X_test)
             print(f'Forecast: ')
             print(y_pred)
-            if len(y_pred) < 3:
+            #if len(y_pred) < 3:
             # Pad with zeros to make it a length of 3
-                y_pred = np.pad(y_pred, (0, 3 - len(y_pred)), 'constant')
-            forecast_df.iloc[i-1, :] = y_pred
-
+            #    y_pred = np.pad(y_pred, (0, 3 - len(y_pred)), 'constant')
+            #forecast_df.iloc[i-1, :] = y_pred
             print('-------------------------------------------------------')
-        return forecast_df
-
-    @staticmethod
-    def chop_forecast_to_fit(forecast_df, y_test):
-        """
-        Chop the forecast to fit
-        """
-        forecast_result = pd.DataFrame(columns=forecast_df.columns, index= y_test[y_test.index < '2023-01-31'].index)
-        forecast_result.iloc[:, 0] = forecast_df.iloc[2:-1, 0]
-        forecast_result.iloc[:, 1] = forecast_df.iloc[1:-2, 1]
-        forecast_result.iloc[:, 2] = forecast_df.iloc[:-3, 2]
-        forecast_result.reset_index(drop=True, inplace=True)
-        return forecast_result
+            y_pred_series.append(y_pred)
+        return y_pred_series
     
     def concat_forecast(self):
         """
         Put all functions above into 1 pipeline
         """
-        N, T, y_test = self.train_test_split()
-        init_forecast_df = self.create_forecast_df(N = N)
-        forecast_df = self.generate_forecast(init_forecast_df, N = N, T = T)
-        final_forecast = self.chop_forecast_to_fit(forecast_df, y_test=y_test)
-        return final_forecast
+        N, T = self.train_test_split()
+        #init_forecast_df = self.create_forecast_df(N = N)
+        y_pred_series = self.generate_forecast(N = N, T = T)
+        #final_forecast = self.chop_forecast_to_fit(forecast_df, y_test=y_test)
+        return y_pred_series
+    
+
+
+
+
+
+
+
+
+
+def concat_all_horizons(pred_1, pred_2, pred_3, y_test, model, max_horizon = 3):
+    """
+    Concatinate all horizons into 1 df
+    """
+    forecast_result = pd.DataFrame(columns=[f"{model}_h_{i}" for i in range(1, max_horizon + 1)], 
+                                   index= y_test[y_test.index < '2023-01-31'].index)
+    
+    forecast_result.iloc[:, 0] = pred_1
+    forecast_result.iloc[:, 1] = pred_2
+    forecast_result.iloc[:, 2] = pred_3
+    return forecast_result
 
 def save_forecast(forecast_result_df, cat_file_path, category = None):
     """
@@ -228,6 +232,10 @@ def save_forecast(forecast_result_df, cat_file_path, category = None):
             dataframe.drop(columns=forecast_result_df.columns, inplace=True)
         concat_df = pd.concat([dataframe, forecast_result_df], axis= 1)
         concat_df.to_csv(cat_file_path, index=False)
+
+
+
+
 
 
     
@@ -268,12 +276,12 @@ def split_into_category(category, HICP_class, HICP_monthly):
     cat_df.fillna(0, inplace=True)
     return cat_df
 
-def split_train_set(cat_df, HICP_cat,h ,train_test_split_date = train_test_split_date):
+def split_train_set(X_df, y, h ,train_test_split_date = train_test_split_date):
     """
     Get the training set for hyperparameter tuning
     """
-    X_cat_train = cat_df[cat_df.index <= train_test_split_date][:-h]
-    y_cat_train = HICP_cat[HICP_cat.index <= train_test_split_date][h:]
+    X_cat_train = X_df[X_df.index <= train_test_split_date][:-h]
+    y_cat_train = y[y.index <= train_test_split_date][h:]
     print(f'Horizon: {h}')
     print(f'Training predictor period: {X_cat_train.index[0]} to {X_cat_train.index[-1]}')
     print(f'Training dependent variable period: {y_cat_train.index[0]} to {y_cat_train.index[-1]}')
@@ -282,30 +290,40 @@ def split_train_set(cat_df, HICP_cat,h ,train_test_split_date = train_test_split
 
 # Step 2: Hyperparameter tuning:
 
-# 2.1. Ridge and Lasso, manual fine tuning:
+# Step 3: Forecast
 
-def tuning_gridsearchcv(reg, grid_space, X_train, y_train, cv = 6, test_size = 12, scoring = 'neg_root_mean_squared_error'):
+
+
+
+def generate_forecast(X, y, N, T, h, hyperparam, model):
     """
-    Tuning using GridSearchCV
-    for Ridge and Lasso
+    Generate recursive forecast
     """
+    print(f'Horizon: {h}')
+    print('------------------------')
+    y_pred_series = []
+    for i in range(2, T+2-h): #T+1-h
+        X_train = X.iloc[:N+i-h, :]
+        y_train = y.iloc[h:N+i, :]
 
-    tscv = TimeSeriesSplit(n_splits= cv, test_size= test_size)
+        X_test = X.iloc[N-h+i:N-h+i+1, :] #:N+i+3
+        y_test = y.iloc[N+i:N+i+1, :] #:N+i+3+h
 
-    pipe = Pipeline(
-        [
-            ("scaling", StandardScaler()),
-            ("regression", reg),
-        ])
+        print(f'Training period - features: {X_train.index[0]} to {X_train.index[-1]}')
+        print(f'Training period - target : {y_train.index[0]} to {y_train.index[-1]}')
+        print(f'Test period - features: {X_test.index}')
+        print(f'Test period - target : {y_test.index}')
 
-    param_grid = {
-        'regression__alpha': grid_space
-    }
+        # Standard scale:
+        # For all things
 
-    grid = GridSearchCV(pipe, n_jobs=1, param_grid=param_grid, cv = tscv, scoring= scoring)
-    grid.fit(X_train, y_train)
+        #### More specific to its own model
+        y_test_pred = model(X_train, X_test, y_train, y_test, hyperparam)
 
-    return grid.best_params_
-
-# 2.2. Tree-based models:
+        print(f'Forecast: {y_test_pred}')
+        print('-------------------------------------------------------')
+        y_pred_series.extend(y_test_pred.tolist())
+        if X_test.index[-1] == X.index[-1]:
+            break
+    return y_pred_series
 
