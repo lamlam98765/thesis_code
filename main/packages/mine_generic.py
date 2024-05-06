@@ -13,46 +13,53 @@ import statsmodels.tsa.stattools as ts
 from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
 
-train_test_split_date = '2015-12-31'
-max_X_date = '2022-12-31'
+train_test_split_date = pd.to_datetime("2015-12-31")
+max_X_date = pd.to_datetime("2022-12-31")
 
 ### For general code using by all models:
 
 
 ### Preprocessing data:
-def load_excel(file_path: str, name: str, sheet_name = 'Sheet 1', skiprows = 8, subset = False) -> pd.Series: 
+def load_excel(
+    file_path: str, name: str, sheet_name="Sheet 1", skiprows=8, subset=False, verbose=1
+) -> pd.Series:
     """
     Load Excel file containing HICP (Harmonized Index of Consumer Prices) all and 4 sub-group, clean up the data.
-    
+
     Parameters:
     - file_path (str): The path to the Excel file.
     - name (str): Name of the series, to distinguish between different series.
     - sheet_name (str, optional): Name of the Excel sheet to load. Default is 'Sheet 1'.
     - skiprows (int, optional): Number of rows to skip from the beginning of the Excel sheet. Default is 8.
     - subset (bool, optional): If True, handle HICP subset, else handle HICP for all.
-    
+    - verbose (int, optional): If verbose == 1, print additional information.
+
     Returns:
     - pd.Series: A pandas Series containing the cleaned up data.
 
     """
     data = pd.read_excel(file_path, sheet_name=sheet_name, skiprows=skiprows)
-    if subset: 
-        data.dropna(axis = 1, how= 'all', inplace=True)
+    if subset:
+        data.dropna(axis=1, how="all", inplace=True)
     df = data.iloc[1, :].to_frame().reset_index()
     df.columns = df.iloc[0]
     df = df[1:]
-    df.rename(columns= {'TIME': 'date', 'Germany': name}, inplace=True)
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df['date'] = df['date'] + pd.offsets.MonthEnd(0)
-    df.dropna(subset=['date'], inplace=True)
-    print(f"Data length: {df.shape[0]} rows from {df.iloc[0, 0]} to {df.iloc[-1, 0]}")
-    df.set_index('date', inplace=True)
-    df = df.asfreq('M')
-    df[df.columns[0]] = df.loc[:, name].astype('float')
-    print(df.head(5))
+    df.rename(columns={"TIME": "date", "Germany": name}, inplace=True)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["date"] = df["date"] + pd.offsets.MonthEnd(0)
+    df.dropna(subset=["date"], inplace=True)
+    df.set_index("date", inplace=True)
+    df = df.asfreq("M")
+    df[df.columns[0]] = df.loc[:, name].astype("float")
+    if verbose == 1:
+        print(
+            f"Data length: {df.shape[0]} rows from {df.iloc[0, 0]} to {df.iloc[-1, 0]}"
+        )
+        print(df.head(5))
     return df
 
-def data_viz(df: pd.Series, title = None, add_line = False):
+
+def data_viz(df: pd.Series, title=None, add_line=False):
     """
     Lineplot time series.
 
@@ -62,25 +69,27 @@ def data_viz(df: pd.Series, title = None, add_line = False):
     - add_line (bool, optional): if True, add a horizonal line y = 0
 
     """
-    plt.figure(figsize = (12, 4))
+    plt.figure(figsize=(12, 4))
     if add_line:
-        plt.plot(df,linewidth = 3)
-        plt.axhline(y = 0)
+        plt.plot(df, linewidth=3)
+        plt.axhline(y=0)
     else:
         plt.plot(df)
     plt.title(title)
 
     plt.show()
 
+
 def transform_yoy_rate(df: pd.DataFrame) -> pd.Series:
     """
     Transform HICP into year-on-year inflation rate (for HICP all and 4 sub categories)
 
     """
-    df.loc[:, 'last_y'] = df.iloc[:, 0].shift(12)
-    df.loc[:, 'yoy_rate'] = (df.iloc[:, 0]/df.loc[:, 'last_y'] - 1) * 100
-    df = df.dropna(subset='yoy_rate')
-    return df['yoy_rate']
+    df.loc[:, "last_y"] = df.iloc[:, 0].shift(12)
+    df.loc[:, "yoy_rate"] = (df.iloc[:, 0] / df.loc[:, "last_y"] - 1) * 100
+    df = df.dropna(subset="yoy_rate")
+    return df["yoy_rate"]
+
 
 def plots_acf_pacf(data: pd.Series, lags=None):
     """
@@ -92,34 +101,43 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     """
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
-    acf  = plt.subplot2grid(layout, (0, 0))
+    acf = plt.subplot2grid(layout, (0, 0))
     pacf = plt.subplot2grid(layout, (0, 1))
-    
+
     plot_acf(data, lags=lags, ax=acf, zero=False)
-    plot_pacf(data, lags=lags, ax=pacf, zero = False)
+    plot_pacf(data, lags=lags, ax=pacf, zero=False)
     sns.despine()
     plt.tight_layout()
+
 
 def dftest(timeseries):
     """
     Conduct ADF test for timeseries.
     """
-    dftest = ts.adfuller(timeseries,) #call function adfuller 
-    dfoutput = pd.Series(dftest[0:4],  
-                         index=['Test Statistic','p-value','Lags Used','Observations Used'])
+    dftest = ts.adfuller(
+        timeseries,
+    )  # call function adfuller
+    dfoutput = pd.Series(
+        dftest[0:4],
+        index=["Test Statistic", "p-value", "Lags Used", "Observations Used"],
+    )
     # display first 4 values with its name
     print(dfoutput)
 
-    if dfoutput['p-value'] < 0.05:
-        print('Time series is stationary!')
+    if dfoutput["p-value"] < 0.05:
+        print("Time series is stationary!")
     else:
-        print('Time series is not stationary!')
+        print("Time series is not stationary!")
 
-class RecursiveForecast():
+
+class RecursiveForecast:
     """
     Create forcast for 1 horizon
     """
-    def __init__(self, X: pd.DataFrame, y: pd.Series, h: int, model, hyperparameter) -> None:
+
+    def __init__(
+        self, X: pd.DataFrame, y: pd.Series, h: int, model, hyperparameter
+    ) -> None:
         self.X = X
         self.y = y
         self.split_date = train_test_split_date
@@ -127,136 +145,139 @@ class RecursiveForecast():
         self.model = model
         self.hyperparameter = hyperparameter
 
-        print(f"Train test split date: {self.split_date}, model {self.model}, hyperparameter: {self.hyperparameter}")
+        print(
+            f"Train test split date: {self.split_date}, model {self.model}, hyperparameter: {self.hyperparameter}"
+        )
 
-    def train_test_split(self): 
+    def train_test_split(self):
         """
         Split the train and test set based on the predetermined date
 
         """
-        X_train = self.X[self.X.index <= self.split_date].iloc[:-self.h, :] # as yt = f(Xt-1)
+        X_train = self.X[self.X.index <= self.split_date].iloc[
+            : -self.h, :
+        ]  # as yt = f(Xt-1)
         X_test = self.X[~self.X.index.isin(X_train.index)]
 
-        y_train = self.y[self.y.index <= self.split_date][self.h:]
+        y_train = self.y[self.y.index <= self.split_date][self.h :]
         y_test = self.y[self.y.index > self.split_date]
         N, T = len(X_train), len(X_test)
-        
-        print(f'Horizon: {self.h}')
-        print(f'Training predictor period: {X_train.index[0]} to {X_train.index[-1]}')
-        print(f'Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}')
-        print(f'Test predictor period: {X_test.index[0]} to {X_test.index[-1]}')
-        print(f'Test dependent variable period: {y_test.index[0]} to {y_test.index[-1]}')
-        print('--------------------------------------------')
+
+        print(f"Horizon: {self.h}")
+        print(f"Training predictor period: {X_train.index[0]} to {X_train.index[-1]}")
+        print(
+            f"Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}"
+        )
+        print(f"Test predictor period: {X_test.index[0]} to {X_test.index[-1]}")
+        print(
+            f"Test dependent variable period: {y_test.index[0]} to {y_test.index[-1]}"
+        )
+        print("--------------------------------------------")
 
         return N, T, y_test
 
     def generate_forecast(self, N: int, T: int) -> pd.DataFrame:
         y_pred_series = []
-        for i in range(1, T): 
-            X_train = self.X.iloc[:N + i, :]
-            y_train = self.y[self.h:N+self.h+i, :]
+        for i in range(1, T):
+            X_train = self.X.iloc[: N + i, :]
+            y_train = self.y[self.h : N + self.h + i, :]
 
-            X_test = self.X.iloc[N+i+1, :]
+            X_test = self.X.iloc[N + i + 1, :]
 
             # forecast horizon h:
-            print(f'Predictor training period: {X_train.index[0]} to {X_train.index[-1]}')
-            print(f'Forecast target period: {y_train.index[0]} to {y_train.index[-1]}')
-            print(f'Predictor test period: {X_test.index}')
+            print(
+                f"Predictor training period: {X_train.index[0]} to {X_train.index[-1]}"
+            )
+            print(f"Forecast target period: {y_train.index[0]} to {y_train.index[-1]}")
+            print(f"Predictor test period: {X_test.index}")
 
             model = self.model(self.hyperparameter)
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-            print(f'Forecast: ')
+            print(f"Forecast: ")
             print(y_pred)
-            #if len(y_pred) < 3:
+            # if len(y_pred) < 3:
             # Pad with zeros to make it a length of 3
             #    y_pred = np.pad(y_pred, (0, 3 - len(y_pred)), 'constant')
-            #forecast_df.iloc[i-1, :] = y_pred
-            print('-------------------------------------------------------')
+            # forecast_df.iloc[i-1, :] = y_pred
+            print("-------------------------------------------------------")
             y_pred_series.append(y_pred)
         return y_pred_series
-    
+
     def concat_forecast(self):
         """
         Put all functions above into 1 pipeline
         """
         N, T = self.train_test_split()
-        #init_forecast_df = self.create_forecast_df(N = N)
-        y_pred_series = self.generate_forecast(N = N, T = T)
-        #final_forecast = self.chop_forecast_to_fit(forecast_df, y_test=y_test)
+        # init_forecast_df = self.create_forecast_df(N = N)
+        y_pred_series = self.generate_forecast(N=N, T=T)
+        # final_forecast = self.chop_forecast_to_fit(forecast_df, y_test=y_test)
         return y_pred_series
-    
 
 
-
-
-
-
-
-
-
-def concat_all_horizons(pred_1, pred_2, pred_3, y_test, model, max_horizon = 3):
+def concat_all_horizons(pred_1, pred_2, pred_3, y_test, model, max_horizon=3):
     """
     Concatinate all horizons into 1 df
     """
-    forecast_result = pd.DataFrame(columns=[f"{model}_h_{i}" for i in range(1, max_horizon + 1)], 
-                                   index= y_test[y_test.index < '2023-01-31'].index)
-    
+    forecast_result = pd.DataFrame(
+        columns=[f"{model}_h_{i}" for i in range(1, max_horizon + 1)],
+        index=y_test[y_test.index < "2023-01-31"].index,
+    )
+
     forecast_result.iloc[:, 0] = pred_1
     forecast_result.iloc[:, 1] = pred_2
     forecast_result.iloc[:, 2] = pred_3
     return forecast_result
 
-def save_forecast(forecast_result_df, cat_file_path, category = None):
+
+def save_forecast(forecast_result_df, cat_file_path, category=None):
     """
     Save the forecast into main file for comparision later
-    - If there's no file created -> create file and save it, 
-    - Else: import main file as a DataFrame, 
+    - If there's no file created -> create file and save it,
+    - Else: import main file as a DataFrame,
     if there's not yet results about that specific method, add it in
     otherwiser overwrite new results into dataframe.
     """
     if category is not None:
         for col in forecast_result_df.columns:
             col = col + category
-    else: 
+    else:
         pass
     if not os.path.isfile(cat_file_path):
-    # File doesn't exist, create it and save the DataFrame
+        # File doesn't exist, create it and save the DataFrame
         forecast_result_df.to_csv(cat_file_path, index=False)
         print(f"CSV file '{cat_file_path}' created and DataFrame saved.")
     else:
         dataframe = pd.read_csv(cat_file_path)
-        missing_columns = [col for col in forecast_result_df.columns if col not in dataframe.columns]
+        missing_columns = [
+            col for col in forecast_result_df.columns if col not in dataframe.columns
+        ]
 
         if not missing_columns:
             dataframe.drop(columns=forecast_result_df.columns, inplace=True)
-        concat_df = pd.concat([dataframe, forecast_result_df], axis= 1)
+        concat_df = pd.concat([dataframe, forecast_result_df], axis=1)
         concat_df.to_csv(cat_file_path, index=False)
 
 
-
-
-
-
-    
 ### not done yet:
 ### Step 1: Get all necessary data:
+
 
 def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str):
     """
     Import all necessary data
-    
+
     """
     HICP_monthly = pd.read_csv(hicp_all_path)
-    HICP_monthly['date'] = pd.to_datetime(HICP_monthly['date'])
-    HICP_monthly.set_index('date', inplace=True)
+    HICP_monthly["date"] = pd.to_datetime(HICP_monthly["date"])
+    HICP_monthly.set_index("date", inplace=True)
 
-    HICP_class = pd.read_excel(hicp_class_path, sheet_name='COICOP_class')
-    HICP_class.index = ['Group 1', 'Group 2', 'Group 3', 'Group 4'] 
+    HICP_class = pd.read_excel(hicp_class_path, sheet_name="COICOP_class")
+    HICP_class.index = ["Group 1", "Group 2", "Group 3", "Group 4"]
 
     HICP_cat = pd.read_csv(hicp_cat_path)
-    HICP_cat['date'] = pd.to_datetime(HICP_cat['date'])
-    HICP_cat.set_index('date', inplace=True)
+    HICP_cat["date"] = pd.to_datetime(HICP_cat["date"])
+    HICP_cat.set_index("date", inplace=True)
 
     return HICP_monthly, HICP_class, HICP_cat
 
@@ -265,27 +286,32 @@ def split_into_category(category, HICP_class, HICP_monthly):
     """
     Take the subset of that specific categories
     """
-    if category == 'Food':
+    if category == "Food":
         cat_col = HICP_class.loc[:, HICP_class.iloc[0, :] == category].columns
     else:
         cat_col = HICP_class.loc[:, HICP_class.iloc[1, :] == category].columns
 
-    print(f'Number of items in {category} group: ', len(cat_col))
+    print(f"Number of items in {category} group: ", len(cat_col))
 
     cat_df = HICP_monthly[cat_col]
     cat_df.fillna(0, inplace=True)
     return cat_df
 
-def split_train_set(X_df, y, h ,train_test_split_date = train_test_split_date):
+
+def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
     """
     Get the training set for hyperparameter tuning
     """
-    X_cat_train = X_df[X_df.index <= train_test_split_date][:-h]
-    y_cat_train = y[y.index <= train_test_split_date][h:]
-    print(f'Horizon: {h}')
-    print(f'Training predictor period: {X_cat_train.index[0]} to {X_cat_train.index[-1]}')
-    print(f'Training dependent variable period: {y_cat_train.index[0]} to {y_cat_train.index[-1]}')
-    return X_cat_train, y_cat_train
+    X_train = X[X.index <= train_test_split_date].iloc[:-h, :]
+    X_test = X.loc[~X.index.isin(X_train.index)]
+    y_train = y[y.index <= train_test_split_date].iloc[h:, :]
+    y_test = y[(y.index > train_test_split_date) & (y.index <= max_X_date)]
+    print(f"Horizon: {h}")
+    print(f"Training predictor period: {X_train.index[0]} to {X_train.index[-1]}")
+    print(
+        f"Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}"
+    )
+    return X_train, X_test, y_train, y_test
 
 
 # Step 2: Hyperparameter tuning:
@@ -293,26 +319,24 @@ def split_train_set(X_df, y, h ,train_test_split_date = train_test_split_date):
 # Step 3: Forecast
 
 
-
-
 def generate_forecast(X, y, N, T, h, hyperparam, model):
     """
     Generate recursive forecast
     """
-    print(f'Horizon: {h}')
-    print('------------------------')
+    print(f"Horizon: {h}")
+    print("------------------------")
     y_pred_series = []
-    for i in range(2, T+2-h): #T+1-h
-        X_train = X.iloc[:N+i-h, :]
-        y_train = y.iloc[h:N+i, :]
+    for i in range(2, T + 2 - h):  # T+1-h
+        X_train = X.iloc[: N + i - h, :]
+        y_train = y.iloc[h : N + i, :]
 
-        X_test = X.iloc[N-h+i:N-h+i+1, :] #:N+i+3
-        y_test = y.iloc[N+i:N+i+1, :] #:N+i+3+h
+        X_test = X.iloc[N - h + i : N - h + i + 1, :]  #:N+i+3
+        y_test = y.iloc[N + i : N + i + 1, :]  #:N+i+3+h
 
-        print(f'Training period - features: {X_train.index[0]} to {X_train.index[-1]}')
-        print(f'Training period - target : {y_train.index[0]} to {y_train.index[-1]}')
-        print(f'Test period - features: {X_test.index}')
-        print(f'Test period - target : {y_test.index}')
+        print(f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}")
+        print(f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}")
+        print(f"Test period - features: {X_test.index}")
+        print(f"Test period - target : {y_test.index}")
 
         # Standard scale:
         # For all things
@@ -320,10 +344,15 @@ def generate_forecast(X, y, N, T, h, hyperparam, model):
         #### More specific to its own model
         y_test_pred = model(X_train, X_test, y_train, y_test, hyperparam)
 
-        print(f'Forecast: {y_test_pred}')
-        print('-------------------------------------------------------')
+        print(f"Forecast: {y_test_pred}")
+        print("-------------------------------------------------------")
         y_pred_series.extend(y_test_pred.tolist())
         if X_test.index[-1] == X.index[-1]:
             break
     return y_pred_series
 
+
+def aggregate_into_all():
+    # Unchain
+
+    pass

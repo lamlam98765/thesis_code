@@ -36,6 +36,8 @@ def tuning_gridsearchcv(reg, grid_space, X_train, y_train, cv = 6, test_size = 1
     grid.fit(X_train, y_train)
 
     return grid.best_params_
+
+
 # 1. Define an objective function to be maximized.
 def objective_xgb(trial, X_cat_train, y_cat_train, k_fold = 5):
     """
