@@ -174,15 +174,15 @@ class RecursiveForecast:
         )
         print("--------------------------------------------")
 
-        return N, T, y_test
+        return N, T, #y_test
 
     def generate_forecast(self, N: int, T: int) -> pd.DataFrame:
         y_pred_series = []
         for i in range(1, T):
-            X_train = self.X.iloc[: N + i, :]
-            y_train = self.y[self.h : N + self.h + i, :]
+            X_train = self.X.iloc[: N+i, :]
+            y_train = self.y[self.h : N+self.h+i, :]
 
-            X_test = self.X.iloc[N + i + 1, :]
+            X_test = self.X.iloc[N+i:N+i+1, :]
 
             # forecast horizon h:
             print(
