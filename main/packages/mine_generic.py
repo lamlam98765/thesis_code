@@ -180,7 +180,7 @@ class RecursiveForecast:
         y_pred_series = []
         for i in range(1, T):
             X_train = self.X.iloc[: N+i, :]
-            y_train = self.y[self.h : N+self.h+i, :]
+            y_train = self.y.iloc[self.h : N+self.h+i, :]
 
             X_test = self.X.iloc[N+i:N+i+1, :]
 
@@ -201,7 +201,7 @@ class RecursiveForecast:
             #    y_pred = np.pad(y_pred, (0, 3 - len(y_pred)), 'constant')
             # forecast_df.iloc[i-1, :] = y_pred
             print("-------------------------------------------------------")
-            y_pred_series.append(y_pred)
+            y_pred_series.append(y_pred[0, 0])
         return y_pred_series
 
     def concat_forecast(self):
@@ -319,7 +319,7 @@ def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
 # Step 3: Forecast
 
 
-def generate_forecast(X, y, N, T, h, hyperparam, model):
+def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0):
     """
     Generate recursive forecast
     """
@@ -333,20 +333,21 @@ def generate_forecast(X, y, N, T, h, hyperparam, model):
         X_test = X.iloc[N - h + i : N - h + i + 1, :]  #:N+i+3
         y_test = y.iloc[N + i : N + i + 1, :]  #:N+i+3+h
 
-        print(f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}")
-        print(f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}")
-        print(f"Test period - features: {X_test.index}")
-        print(f"Test period - target : {y_test.index}")
-
         # Standard scale:
         # For all things
 
         #### More specific to its own model
-        y_test_pred = model(X_train, X_test, y_train, y_test, hyperparam)
-
-        print(f"Forecast: {y_test_pred}")
-        print("-------------------------------------------------------")
-        y_pred_series.extend(y_test_pred.tolist())
+        model_here = model(hyperparam)
+        model_here.fit(X_train, y_train)
+        y_pred = model_here.predict(X_test)
+        if verbose == 1:
+            print(f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}")
+            print(f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}")
+            print(f"Test period - features: {X_test.index}")
+            print(f"Test period - target : {y_test.index}")
+            print(f"Forecast: {y_pred}")
+            print("-------------------------------------------------------")
+        y_pred_series.append(y_pred[0][0])
         if X_test.index[-1] == X.index[-1]:
             break
     return y_pred_series
