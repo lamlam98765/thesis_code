@@ -182,7 +182,7 @@ def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str
     return HICP_monthly, HICP_class, HICP_cat
 
 
-def split_into_category(category, HICP_class, HICP_monthly):
+def split_into_category(category, HICP_class, HICP_monthly, fillna=True):
     """
     Take the subset of that specific categories
     """
@@ -194,7 +194,9 @@ def split_into_category(category, HICP_class, HICP_monthly):
     print(f"Number of items in {category} group: ", len(cat_col))
 
     cat_df = HICP_monthly[cat_col]
-    cat_df.fillna(0, inplace=True)
+    if fillna == True:
+        cat_df.fillna(0, inplace=True)
+
     return cat_df
 
 
@@ -227,24 +229,31 @@ def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0):
     print("------------------------")
     y_pred_series = []
     for i in range(0, T):  # T+1-h
-        X_train = X.iloc[: N+i, :]
-        y_train = y.iloc[h: N+i+h, :]
+        X_train = X.iloc[: N + i, :]
+        y_train = y.iloc[h : N + i + h, :]
 
-        X_test = X.iloc[N+i : N+i+1, :] 
-        y_test = y.iloc[N+i+h : N+i+h+1, :]  
+        X_test = X.iloc[N + i : N + i + 1, :]
+        y_test = y.iloc[N + i + h : N + i + h + 1, :]
 
-        if X_test.index[-1] > X.index[-1]-pd.DateOffset(months=h):
+        if X_test.index[-1] > X.index[-1] - pd.DateOffset(months=h):
             break
         # Standard scale:
         # For all things
 
         #### More specific to its own model
+
         model_here = model(hyperparam)
         model_here.fit(X_train, y_train)
         y_pred = model_here.predict(X_test)
+
+        #####
         if verbose == 1:
-            print(f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}")
-            print(f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}")
+            print(
+                f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}"
+            )
+            print(
+                f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}"
+            )
             print(f"Test period - features: {X_test.index}")
             print(f"Test period - target : {y_test.index}")
             print(f"Forecast: {y_pred}")
@@ -255,6 +264,7 @@ def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0):
             y_pred_series.append(y_pred[0][0])
 
     return y_pred_series
+
 
 def aggregate_into_all():
     # Unchain
