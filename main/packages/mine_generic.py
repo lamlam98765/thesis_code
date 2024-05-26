@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.pipeline import Pipeline
 
@@ -221,12 +221,14 @@ def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
 # Step 3: Forecast
 
 
-def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0):
+def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0, scale=None):
     """
     Generate recursive forecast
     """
     print(f"Horizon: {h}")
     print("------------------------")
+    # standard scale the data, or maybe min max scale it, I'm not sure yet:
+
     y_pred_series = []
     for i in range(0, T):  # T+1-h
         X_train = X.iloc[: N + i, :]
