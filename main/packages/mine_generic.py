@@ -68,6 +68,8 @@ def data_viz(df: pd.Series, title=None, add_line=False):
     - title (str, optional): title of plot.
     - add_line (bool, optional): if True, add a horizonal line y = 0
 
+    Return:
+    None
     """
     plt.figure(figsize=(12, 4))
     if add_line:
@@ -82,11 +84,21 @@ def data_viz(df: pd.Series, title=None, add_line=False):
 
 def transform_yoy_rate(df: pd.DataFrame) -> pd.Series:
     """
-    Transform HICP into year-on-year inflation rate (for HICP all and 4 sub categories)
+    Transform HICP data into year-on-year inflation rate (for HICP all and 4 sub categories).
 
+    Parameters:
+    - df (pd.DataFrame): A DataFrame containing the HICP data. The first column should represent the HICP values.
+
+    Returns:
+    - pd.Series: A Series containing the calculated year-on-year inflation rates.
     """
+    # 1. Shift by 12 rows to obtain the value from the same month in the previous year.
     df.loc[:, "last_y"] = df.iloc[:, 0].shift(12)
+
+    # 2. Compute the year-on-year inflation rate using the formula: ((current_value / last_year_value) - 1) * 100.
     df.loc[:, "yoy_rate"] = (df.iloc[:, 0] / df.loc[:, "last_y"] - 1) * 100
+
+    # 3. Remove any NaN rows.
     df = df.dropna(subset="yoy_rate")
     return df["yoy_rate"]
 
@@ -98,6 +110,9 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     Parameters:
     - data (pd.Series): time series
     - lags (int, optional): maximum lags
+
+    Return:
+    None.
     """
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
@@ -110,9 +125,18 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     plt.tight_layout()
 
 
-def dftest(timeseries):
+def dftest(timeseries: pd.Series):
     """
-    Conduct ADF test for timeseries.
+    Conducts the Augmented Dickey-Fuller (ADF) test to check for stationarity in a time series.
+
+    Parameters:
+    - timeseries (pd.Series): time series
+
+    Returns:
+    None
+
+    The function prints the ADF test results and indicates if the time series is stationary based on the p-value.
+
     """
     dftest = ts.adfuller(
         timeseries,
@@ -130,19 +154,24 @@ def dftest(timeseries):
         print("Time series is not stationary!")
 
 
-def save_forecast(forecast_result_df, cat_file_path, category=None):
+def save_forecast(forecast_result_df, cat_file_path):
     """
-    Save the forecast into main file for comparision later
-    - If there's no file created -> create file and save it,
-    - Else: import main file as a DataFrame,
-    if there's not yet results about that specific method, add it in
-    otherwiser overwrite new results into dataframe.
+    Save the forecasts.
+    Parameters:
+    - forecast_result_df (pd.DataFrame): DataFrame containing the forecast results.
+    - cat_file_path (str): Path to the file where results are stored.
+
+    Returns:
+    None
+
+    This function performs the following steps:
+    1. If the file does not exist, create it and save the forecast results.
+    2. If the main file exists, load it as a DataFrame.
+    3. If results for the specified method/category do not exist, add the new results.
+    4. If results for the specified method/category exist, overwrite them with the new results.
+
     """
-    if category is not None:
-        for col in forecast_result_df.columns:
-            col = col + category
-    else:
-        pass
+
     if not os.path.isfile(cat_file_path):
         # File doesn't exist, create it and save the DataFrame
         forecast_result_df.to_csv(cat_file_path, index=False)
@@ -266,9 +295,3 @@ def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0, scale=None):
             y_pred_series.append(y_pred[0][0])
 
     return y_pred_series
-
-
-def aggregate_into_all():
-    # Unchain
-
-    pass
