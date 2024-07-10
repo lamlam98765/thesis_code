@@ -57,7 +57,9 @@ def tuning_gridsearchcv(
 
 
 # 1. Define an objective function to be maximized.
-def objective_xgb(trial, X_cat_train, y_cat_train, k_fold=5, scaler=True):
+def objective_xgb(
+    trial, X_cat_train, y_cat_train, k_fold=5, scaler=True, use_all_params=True
+):
     """
     For XBG hyperparam tuning
 
@@ -73,14 +75,20 @@ def objective_xgb(trial, X_cat_train, y_cat_train, k_fold=5, scaler=True):
         "max_depth": trial.suggest_int("max_depth", 3, 10),
         "num_boosted_rounds": 10000,
         "early_stopping_rounds": 50,
-        "gamma": trial.suggest_float("gamma", 0.0, 10),
-        "min_child_weight": trial.suggest_float("min_child_weight", 0.01, 10.0),
         "lambda": trial.suggest_float("lambda", 0.01, 1),
         "alpha": trial.suggest_float("alpha", 0.01, 10),
-        # sampling ratio for training data.
-        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
-        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
     }
+
+    if use_all_params:
+        params.update(
+            {
+                "gamma": trial.suggest_float("gamma", 0.0, 10),
+                "min_child_weight": trial.suggest_float("min_child_weight", 0.01, 10.0),
+                # sampling ratio for training data.
+                "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+                "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+            }
+        )
     tscv = TimeSeriesSplit(n_splits=k_fold, test_size=24)
 
     ## Do it explicitly via xgb API:
@@ -123,7 +131,7 @@ def objective_xgb(trial, X_cat_train, y_cat_train, k_fold=5, scaler=True):
 
 
 def hyperparam_tuning_optuna(
-    objective, X_cat_train, y_cat_train, n_trials=1000, scaler=True
+    objective, X_cat_train, y_cat_train, n_trials=1000, scaler=True, use_all_params=True
 ):
     # 1. Define an objective function to be maximized.
 
@@ -139,7 +147,14 @@ def hyperparam_tuning_optuna(
         # storage=storage
     )
     study.optimize(
-        lambda trial: objective(trial, X_cat_train, y_cat_train, scaler=True),
+        lambda trial: objective(
+            trial,
+            X_cat_train,
+            y_cat_train,
+            k_fold=5,
+            scaler=scaler,
+            use_all_params=use_all_params,
+        ),
         n_trials=n_trials,
     )
     # run_server(storage, host="localhost", port=8080)
