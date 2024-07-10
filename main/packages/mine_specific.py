@@ -139,7 +139,7 @@ def hyperparam_tuning_optuna(
         # storage=storage
     )
     study.optimize(
-        lambda trial: objective(trial, X_cat_train, y_cat_train, scaler=True),
+        lambda trial: objective(trial, X_cat_train, y_cat_train, scaler=scaler),
         n_trials=n_trials,
     )
     # run_server(storage, host="localhost", port=8080)
