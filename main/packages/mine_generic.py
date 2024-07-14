@@ -1,22 +1,18 @@
-import numpy as np
+"""
+General code used by all models, including importing and preprocessing data.
+"""
+
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.linear_model import Ridge, Lasso
-from sklearn.pipeline import Pipeline
-
 import statsmodels.tsa.stattools as ts
 from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
 
-train_test_split_date = pd.to_datetime("2015-12-31")
+train_test_split_date = pd.to_datetime("2015-12-31")  # the date to split train-test set
 max_X_date = pd.to_datetime("2022-12-31")
-
-### For general code using by all models:
 
 
 ### Preprocessing data:
@@ -114,6 +110,7 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     Return:
     None.
     """
+
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
     acf = plt.subplot2grid(layout, (0, 0))
@@ -136,8 +133,8 @@ def dftest(timeseries: pd.Series):
     None
 
     The function prints the ADF test results and indicates if the time series is stationary based on the p-value.
-
     """
+
     dftest = ts.adfuller(
         timeseries,
     )  # call function adfuller
@@ -169,7 +166,6 @@ def save_forecast(forecast_result_df, cat_file_path):
     2. If the main file exists, load it as a DataFrame.
     3. If results for the specified method/category do not exist, add the new results.
     4. If results for the specified method/category exist, overwrite them with the new results.
-
     """
 
     if not os.path.isfile(cat_file_path):
@@ -188,15 +184,22 @@ def save_forecast(forecast_result_df, cat_file_path):
         concat_df.to_csv(cat_file_path, index=False)
 
 
-### not done yet:
-### Step 1: Get all necessary data:
+### Import all necessary data:
 
 
 def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str):
     """
-    Import all necessary data
+    Import all necessary data, first step in forecasting.
 
+    Parameters:
+    - hicp_all_path (str): path to HICP all-item data.
+    - hicp_class_path (str): path to HICP classification.
+    - hicp_cat_path (str): path to a specific HICP category
+
+    Return:
+    Preprocessed HICP all-items, HICP classification, HICP of that category.
     """
+
     HICP_monthly = pd.read_csv(hicp_all_path)
     HICP_monthly["date"] = pd.to_datetime(HICP_monthly["date"])
     HICP_monthly.set_index("date", inplace=True)
@@ -213,8 +216,28 @@ def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str
 
 def split_into_category(category, HICP_class, HICP_monthly, fillna=True):
     """
-    Take the subset of that specific categories
+    Extract a subset of data for a specific category from HICP data.
+
+    Parameters:
+    - category : str
+        The name of the category to filter by.
+    - HICP_class : pandas.DataFrame
+        A DataFrame containing category classifications.
+    - HICP_monthly : pandas.DataFrame
+        A DataFrame containing the monthly HICP data.
+    - fillna : bool, optional
+        Whether to fill missing values with zero in the resulting subset DataFrame. The default is True.
+
+    Returns:
+    pandas.DataFrame
+        A subset of `HICP_monthly` containing only the columns that belong to
+        the specified category.
+
+    Prints:
+    Number of items in the specified category.
+
     """
+
     if category == "Food":
         cat_col = HICP_class.loc[:, HICP_class.iloc[0, :] == category].columns
     else:
@@ -229,10 +252,33 @@ def split_into_category(category, HICP_class, HICP_monthly, fillna=True):
     return cat_df
 
 
-def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
+def split_train_test_set(
+    X: pd.DataFrame,
+    y: pd.DataFrame,
+    h: int,
+    train_test_split_date=train_test_split_date,
+):
     """
-    Get the training set for hyperparameter tuning
+    Get the training set for hyperparameter tuning.
+
+    Parameters:
+    - X (pd.DataFrame): predictor set
+    - y (pd.DataFrame): target
+    - h (int): horizon between predictor and target
+    - train_test_split_date (optional): date to split training and test set
+    Default value is 'train_test_split_date'
+
+    Returns:
+    - X_train (pd.DataFrame): The training set features.
+    - X_test (pd.DataFrame): The test set features.
+    - y_train (pd.DataFrame): The training set target.
+    - y_train (pd.DataFrame): The test set target.
+
+    Prints:
+    - Current horizon.
+    - Period for training set and test set.
     """
+
     X_train = X[X.index <= train_test_split_date].iloc[:-h, :]
     X_test = X.loc[~X.index.isin(X_train.index)]
     y_train = y[y.index <= train_test_split_date].iloc[h:, :]
@@ -243,55 +289,3 @@ def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
         f"Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}"
     )
     return X_train, X_test, y_train, y_test
-
-
-# Step 2: Hyperparameter tuning:
-
-# Step 3: Forecast
-
-
-def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0, scale=None):
-    """
-    Generate recursive forecast
-    """
-    print(f"Horizon: {h}")
-    print("------------------------")
-    # standard scale the data, or maybe min max scale it, I'm not sure yet:
-
-    y_pred_series = []
-    for i in range(0, T):  # T+1-h
-        X_train = X.iloc[: N + i, :]
-        y_train = y.iloc[h : N + i + h, :]
-
-        X_test = X.iloc[N + i : N + i + 1, :]
-        y_test = y.iloc[N + i + h : N + i + h + 1, :]
-
-        if X_test.index[-1] > X.index[-1] - pd.DateOffset(months=h):
-            break
-        # Standard scale:
-        # For all things
-
-        #### More specific to its own model
-
-        model_here = model(hyperparam)
-        model_here.fit(X_train, y_train)
-        y_pred = model_here.predict(X_test)
-
-        #####
-        if verbose == 1:
-            print(
-                f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}"
-            )
-            print(
-                f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}"
-            )
-            print(f"Test period - features: {X_test.index}")
-            print(f"Test period - target : {y_test.index}")
-            print(f"Forecast: {y_pred}")
-            print("-------------------------------------------------------")
-        if model == Lasso:
-            y_pred_series.append(y_pred[0])
-        else:
-            y_pred_series.append(y_pred[0][0])
-
-    return y_pred_series

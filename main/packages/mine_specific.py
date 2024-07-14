@@ -1,7 +1,7 @@
-### design recursive model for all things:
+"""
+These functions are designed mostly for hyperparameter tuning step and recursive forecasts and for a specific model
+"""
 
-# like: if == xgb -> do this
-#
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -9,16 +9,19 @@ import optuna
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 from sklearn.pipeline import Pipeline
-
+from sklearn.linear_model import Lasso
+import pandas as pd
+import numpy as np
+import sklearn
 
 # Step 2: Hyperparameter tuning:
 # 2.1. Ridge and Lasso, manual fine tuning:
 
 
 def tuning_gridsearchcv(
-    reg,
-    grid_space,
-    X_train,
+    reg: sklearn.base.BaseEstimator,
+    grid_space: np.array,
+    X_train: pd.DataFrame,
     y_train,
     cv=6,
     test_size=12,
@@ -26,17 +29,31 @@ def tuning_gridsearchcv(
     scale=True,
 ):
     """
-    Tuning using GridSearchCV
-    for Ridge and Lasso
+    Perform hyperparameter tuning using GridSearchCV for Ridge and Lasso regressions.
+
+    Parameters:
+    - reg (sklearn.base.BaseEstimator): Regression model to be tuned (e.g., Ridge() or Lasso()).
+    - grid_space (np.array): Grid of alpha values to search over for the regression model.
+    - X_train (pd.DataFrame): The training features.
+    - y_train (pd.DataFrame): The training target values.
+    - cv (int, optional): Number of cross-validation splits. The default is 6.
+    - test_size (int, optional): Number of test samples in each cross-validation split. The default is 12.
+    - scoring (str, optional): Metric to use for evaluation.
+    The default is "neg_root_mean_squared_error", meaning negative root mean squared error.
+    - scale (bool, optional): if to scale the features before regression. The default is True.
+
+    Returns:
+    dict: best hyperparameters found by GridSearchCV.
     """
 
+    # k-fold time series split
     tscv = TimeSeriesSplit(n_splits=cv, test_size=test_size)
 
     if scale == True:
         pipe = Pipeline(
             [
-                ("scaling", StandardScaler()),
-                ("regression", reg),
+                ("scaling", StandardScaler()),  # Standardize features:
+                ("regression", reg),  # regression
             ]
         )
     else:
@@ -48,12 +65,59 @@ def tuning_gridsearchcv(
 
     param_grid = {"regression__alpha": grid_space}
 
-    grid = GridSearchCV(
+    grid = GridSearchCV(  # define the Grid search
         pipe, n_jobs=-1, param_grid=param_grid, cv=tscv, scoring=scoring
     )
-    grid.fit(X_train, y_train)
+    grid.fit(X_train, y_train)  # fit to find the best hyperparameter alpha
 
     return grid.best_params_
+
+
+def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0, scale=None):
+    """
+    Generate recursive forecast
+    """
+    print(f"Horizon: {h}")
+    print("------------------------")
+    # standard scale the data, or maybe min max scale it, I'm not sure yet:
+
+    y_pred_series = []
+    for i in range(0, T):  # T+1-h
+        X_train = X.iloc[: N + i, :]
+        y_train = y.iloc[h : N + i + h, :]
+
+        X_test = X.iloc[N + i : N + i + 1, :]
+        y_test = y.iloc[N + i + h : N + i + h + 1, :]
+
+        if X_test.index[-1] > X.index[-1] - pd.DateOffset(months=h):
+            break
+        # Standard scale:
+        # For all things
+
+        #### More specific to its own model
+
+        model_here = model(hyperparam)
+        model_here.fit(X_train, y_train)
+        y_pred = model_here.predict(X_test)
+
+        #####
+        if verbose == 1:
+            print(
+                f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}"
+            )
+            print(
+                f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}"
+            )
+            print(f"Test period - features: {X_test.index}")
+            print(f"Test period - target : {y_test.index}")
+            print(f"Forecast: {y_pred}")
+            print("-------------------------------------------------------")
+        if model == Lasso:
+            y_pred_series.append(y_pred[0])
+        else:
+            y_pred_series.append(y_pred[0][0])
+
+    return y_pred_series
 
 
 # 1. Define an objective function to be maximized.

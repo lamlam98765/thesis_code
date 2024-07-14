@@ -1,2 +1,10 @@
-pandas == 2.1.4
-python == 3.11.7
+python==3.11.7
+pandas==2.1.4
+dieboldmariano==1.0.0
+matplotlib==3.8.0
+numpy==1.26.3
+optuna==3.5.0
+pmdarima==2.0.3
+scikit-learn==1.2.2
+scipy==1.11.4
+seaborn==0.12.2
