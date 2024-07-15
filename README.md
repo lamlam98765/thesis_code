@@ -20,5 +20,7 @@ I forecast HICP headline inflation using over 600 disaggregated CPI indices, usi
 
 `packages`: my own packages.
 
+Notebooks: run the models
+
 
 

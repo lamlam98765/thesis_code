@@ -10,6 +10,7 @@ import seaborn as sns
 import statsmodels.tsa.stattools as ts
 from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
+import os
 
 train_test_split_date = pd.to_datetime("2015-12-31")  # the date to split train-test set
 max_X_date = pd.to_datetime("2022-12-31")
@@ -289,3 +290,30 @@ def split_train_test_set(
         f"Training dependent variable period: {y_train.index[0]} to {y_train.index[-1]}"
     )
     return X_train, X_test, y_train, y_test
+
+
+def concatenate_csv_files(folder_path):
+    """
+    Concatenates CSV files in a folder column-wise into a single DataFrame.
+
+    Args:
+    - folder_path (str): Path to the folder containing CSV files.
+
+    Returns:
+    - concatenated_df (DataFrame): Concatenated DataFrame.
+    """
+
+    csv_files = [file for file in os.listdir(folder_path) if file.endswith(".csv")]
+
+    concatenated_df = pd.DataFrame()
+
+    # Iterate through each CSV file
+    for file in csv_files:
+        file_path = os.path.join(folder_path, file)
+        df = pd.read_csv(file_path)
+
+        # Add each file's data as new columns in the concatenated DataFrame
+        concatenated_df = pd.concat([concatenated_df, df], axis=1)
+        concatenated_df = concatenated_df.loc[:, ~concatenated_df.columns.duplicated()]
+
+    return concatenated_df
