@@ -1,22 +1,19 @@
-import numpy as np
+"""
+General code used by all models, including importing and preprocessing data.
+"""
+
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import Ridge, Lasso
-from sklearn.pipeline import Pipeline
-
 import statsmodels.tsa.stattools as ts
 from statsmodels.graphics.tsaplots import plot_pacf
 from statsmodels.graphics.tsaplots import plot_acf
+import os
 
-train_test_split_date = pd.to_datetime("2015-12-31")
+train_test_split_date = pd.to_datetime("2015-12-31")  # the date to split train-test set
 max_X_date = pd.to_datetime("2022-12-31")
-
-### For general code using by all models:
 
 
 ### Preprocessing data:
@@ -68,6 +65,8 @@ def data_viz(df: pd.Series, title=None, add_line=False):
     - title (str, optional): title of plot.
     - add_line (bool, optional): if True, add a horizonal line y = 0
 
+    Return:
+    None
     """
     plt.figure(figsize=(12, 4))
     if add_line:
@@ -82,11 +81,21 @@ def data_viz(df: pd.Series, title=None, add_line=False):
 
 def transform_yoy_rate(df: pd.DataFrame) -> pd.Series:
     """
-    Transform HICP into year-on-year inflation rate (for HICP all and 4 sub categories)
+    Transform HICP data into year-on-year inflation rate (for HICP all and 4 sub categories).
 
+    Parameters:
+    - df (pd.DataFrame): A DataFrame containing the HICP data. The first column should represent the HICP values.
+
+    Returns:
+    - pd.Series: A Series containing the calculated year-on-year inflation rates.
     """
+    # 1. Shift by 12 rows to obtain the value from the same month in the previous year.
     df.loc[:, "last_y"] = df.iloc[:, 0].shift(12)
+
+    # 2. Compute the year-on-year inflation rate using the formula: ((current_value / last_year_value) - 1) * 100.
     df.loc[:, "yoy_rate"] = (df.iloc[:, 0] / df.loc[:, "last_y"] - 1) * 100
+
+    # 3. Remove any NaN rows.
     df = df.dropna(subset="yoy_rate")
     return df["yoy_rate"]
 
@@ -98,7 +107,11 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     Parameters:
     - data (pd.Series): time series
     - lags (int, optional): maximum lags
+
+    Return:
+    None.
     """
+
     plt.figure(figsize=(15, 4))
     layout = (1, 2)
     acf = plt.subplot2grid(layout, (0, 0))
@@ -110,10 +123,19 @@ def plots_acf_pacf(data: pd.Series, lags=None):
     plt.tight_layout()
 
 
-def dftest(timeseries):
+def dftest(timeseries: pd.Series):
     """
-    Conduct ADF test for timeseries.
+    Conducts the Augmented Dickey-Fuller (ADF) test to check for stationarity in a time series.
+
+    Parameters:
+    - timeseries (pd.Series): time series
+
+    Returns:
+    None
+
+    The function prints the ADF test results and indicates if the time series is stationary based on the p-value.
     """
+
     dftest = ts.adfuller(
         timeseries,
     )  # call function adfuller
@@ -130,44 +152,57 @@ def dftest(timeseries):
         print("Time series is not stationary!")
 
 
-def save_forecast(forecast_result_df, cat_file_path, category=None):
+def save_forecast(forecast_result_df, cat_file_path):
     """
-    Save the forecast into main file for comparision later
-    - If there's no file created -> create file and save it,
-    - Else: import main file as a DataFrame,
-    if there's not yet results about that specific method, add it in
-    otherwiser overwrite new results into dataframe.
+    Save the forecasts.
+    Parameters:
+    - forecast_result_df (pd.DataFrame): DataFrame containing the forecast results.
+    - cat_file_path (str): Path to the file where results are stored.
+
+    Returns:
+    None
+
+    This function performs the following steps:
+    1. If the file does not exist, create it and save the forecast results.
+    2. If the main file exists, load it as a DataFrame.
+    3. If results for the specified method/category do not exist, add the new results.
+    4. If results for the specified method/category exist, overwrite them with the new results.
     """
-    if category is not None:
-        for col in forecast_result_df.columns:
-            col = col + category
-    else:
-        pass
+
     if not os.path.isfile(cat_file_path):
         # File doesn't exist, create it and save the DataFrame
         forecast_result_df.to_csv(cat_file_path, index=False)
         print(f"CSV file '{cat_file_path}' created and DataFrame saved.")
     else:
         dataframe = pd.read_csv(cat_file_path)
-        missing_columns = [
-            col for col in forecast_result_df.columns if col not in dataframe.columns
-        ]
 
-        if not missing_columns:
-            dataframe.drop(columns=forecast_result_df.columns, inplace=True)
-        concat_df = pd.concat([dataframe, forecast_result_df], axis=1)
-        concat_df.to_csv(cat_file_path, index=False)
+        # Update existing columns with new data
+        for col in forecast_result_df.columns:
+            if col in dataframe.columns:
+                dataframe[col] = forecast_result_df[col]
+            else:
+                dataframe[col] = forecast_result_df[col]
+
+        # Save the updated DataFrame
+        dataframe.to_csv(cat_file_path, index=False)
 
 
-### not done yet:
-### Step 1: Get all necessary data:
+### Import all necessary data:
 
 
 def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str):
     """
-    Import all necessary data
+    Import all necessary data, first step in forecasting.
 
+    Parameters:
+    - hicp_all_path (str): path to HICP all-item data.
+    - hicp_class_path (str): path to HICP classification.
+    - hicp_cat_path (str): path to a specific HICP category
+
+    Return:
+    Preprocessed HICP all-items, HICP classification, HICP of that category.
     """
+
     HICP_monthly = pd.read_csv(hicp_all_path)
     HICP_monthly["date"] = pd.to_datetime(HICP_monthly["date"])
     HICP_monthly.set_index("date", inplace=True)
@@ -184,8 +219,28 @@ def import_data_all(hicp_all_path: str, hicp_class_path: str, hicp_cat_path: str
 
 def split_into_category(category, HICP_class, HICP_monthly, fillna=True):
     """
-    Take the subset of that specific categories
+    Extract a subset of data for a specific category from HICP data.
+
+    Parameters:
+    - category : str
+        The name of the category to filter by.
+    - HICP_class : pandas.DataFrame
+        A DataFrame containing category classifications.
+    - HICP_monthly : pandas.DataFrame
+        A DataFrame containing the monthly HICP data.
+    - fillna : bool, optional
+        Whether to fill missing values with zero in the resulting subset DataFrame. The default is True.
+
+    Returns:
+    pandas.DataFrame
+        A subset of `HICP_monthly` containing only the columns that belong to
+        the specified category.
+
+    Prints:
+    Number of items in the specified category.
+
     """
+
     if category == "Food":
         cat_col = HICP_class.loc[:, HICP_class.iloc[0, :] == category].columns
     else:
@@ -200,10 +255,33 @@ def split_into_category(category, HICP_class, HICP_monthly, fillna=True):
     return cat_df
 
 
-def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
+def split_train_test_set(
+    X: pd.DataFrame,
+    y: pd.DataFrame,
+    h: int,
+    train_test_split_date=train_test_split_date,
+):
     """
-    Get the training set for hyperparameter tuning
+    Get the training set for hyperparameter tuning.
+
+    Parameters:
+    - X (pd.DataFrame): predictor set
+    - y (pd.DataFrame): target
+    - h (int): horizon between predictor and target
+    - train_test_split_date (optional): date to split training and test set
+    Default value is 'train_test_split_date'
+
+    Returns:
+    - X_train (pd.DataFrame): The training set features.
+    - X_test (pd.DataFrame): The test set features.
+    - y_train (pd.DataFrame): The training set target.
+    - y_train (pd.DataFrame): The test set target.
+
+    Prints:
+    - Current horizon.
+    - Period for training set and test set.
     """
+
     X_train = X[X.index <= train_test_split_date].iloc[:-h, :]
     X_test = X.loc[~X.index.isin(X_train.index)]
     y_train = y[y.index <= train_test_split_date].iloc[h:, :]
@@ -216,57 +294,28 @@ def split_train_test_set(X, y, h, train_test_split_date=train_test_split_date):
     return X_train, X_test, y_train, y_test
 
 
-# Step 2: Hyperparameter tuning:
-
-# Step 3: Forecast
-
-
-def generate_forecast(X, y, N, T, h, hyperparam, model, verbose=0):
+def concatenate_csv_files(folder_path):
     """
-    Generate recursive forecast
+    Concatenates CSV files in a folder column-wise into a single DataFrame.
+
+    Args:
+    - folder_path (str): Path to the folder containing CSV files.
+
+    Returns:
+    - concatenated_df (DataFrame): Concatenated DataFrame.
     """
-    print(f"Horizon: {h}")
-    print("------------------------")
-    y_pred_series = []
-    for i in range(0, T):  # T+1-h
-        X_train = X.iloc[: N + i, :]
-        y_train = y.iloc[h : N + i + h, :]
 
-        X_test = X.iloc[N + i : N + i + 1, :]
-        y_test = y.iloc[N + i + h : N + i + h + 1, :]
+    csv_files = [file for file in os.listdir(folder_path) if file.endswith(".csv")]
 
-        if X_test.index[-1] > X.index[-1] - pd.DateOffset(months=h):
-            break
-        # Standard scale:
-        # For all things
+    concatenated_df = pd.DataFrame()
 
-        #### More specific to its own model
+    # Iterate through each CSV file
+    for file in csv_files:
+        file_path = os.path.join(folder_path, file)
+        df = pd.read_csv(file_path)
 
-        model_here = model(hyperparam)
-        model_here.fit(X_train, y_train)
-        y_pred = model_here.predict(X_test)
+        # Add each file's data as new columns in the concatenated DataFrame
+        concatenated_df = pd.concat([concatenated_df, df], axis=1)
+        concatenated_df = concatenated_df.loc[:, ~concatenated_df.columns.duplicated()]
 
-        #####
-        if verbose == 1:
-            print(
-                f"Training period - features: {X_train.index[0]} to {X_train.index[-1]}"
-            )
-            print(
-                f"Training period - target : {y_train.index[0]} to {y_train.index[-1]}"
-            )
-            print(f"Test period - features: {X_test.index}")
-            print(f"Test period - target : {y_test.index}")
-            print(f"Forecast: {y_pred}")
-            print("-------------------------------------------------------")
-        if model == Lasso:
-            y_pred_series.append(y_pred[0])
-        else:
-            y_pred_series.append(y_pred[0][0])
-
-    return y_pred_series
-
-
-def aggregate_into_all():
-    # Unchain
-
-    pass
+    return concatenated_df
