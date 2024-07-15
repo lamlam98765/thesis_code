@@ -175,14 +175,16 @@ def save_forecast(forecast_result_df, cat_file_path):
         print(f"CSV file '{cat_file_path}' created and DataFrame saved.")
     else:
         dataframe = pd.read_csv(cat_file_path)
-        missing_columns = [
-            col for col in forecast_result_df.columns if col not in dataframe.columns
-        ]
 
-        if not missing_columns:
-            dataframe.drop(columns=forecast_result_df.columns, inplace=True)
-        concat_df = pd.concat([dataframe, forecast_result_df], axis=1)
-        concat_df.to_csv(cat_file_path, index=False)
+        # Update existing columns with new data
+        for col in forecast_result_df.columns:
+            if col in dataframe.columns:
+                dataframe[col] = forecast_result_df[col]
+            else:
+                dataframe[col] = forecast_result_df[col]
+
+        # Save the updated DataFrame
+        dataframe.to_csv(cat_file_path, index=False)
 
 
 ### Import all necessary data:

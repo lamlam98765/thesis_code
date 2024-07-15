@@ -22,5 +22,9 @@ I forecast HICP headline inflation using over 600 disaggregated CPI indices, usi
 
 Notebooks: run the models
 
+- `model`: save xgboost plain (notebook 5.1) hyperparameters.
+
+- `requirement.txt`: all the necessary package versions.
+
 
 

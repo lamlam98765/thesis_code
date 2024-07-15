@@ -2,6 +2,7 @@
 These functions are designed mostly for hyperparameter tuning step and recursive forecasts and for a specific model
 """
 
+from statsmodels.tsa.arima.model import ARIMA
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -246,3 +247,42 @@ def xgb_pred(
     )
 
     return model.predict(dvalid)
+
+
+def sarimax_recursive_forecast(y, order, seasonal_order, horizons, N, T):
+    """
+    Create forecast results after doing SARIMAX recursive forecast, using for baseline models
+    Args:
+    - y:
+    - order: trained order
+    - seasonal_order: seasonal order
+    - horizon: forecast horizon
+    - N: length of training period
+    - T: length of test period
+    """
+    forecast_df = pd.DataFrame()
+
+    # Iterate through the time series data
+    for h in horizons:
+        forecasts = []
+        for i in range(1, T + 1):
+            # Define the expanding window training set
+            train_data = y[: N + i - h]
+            print(f"Horizon {h}, step {i}")
+
+            # Create and fit the SARIMAX model
+            model = ARIMA(
+                train_data, order=order, seasonal_order=seasonal_order, trend="n"
+            )
+            model_fit = model.fit()
+
+            # Forecast h step ahead
+            pred = model_fit.forecast(steps=h)
+            print("Prediction: ", pred)
+            forecasts.append(pred.iloc[-1])
+        # Assign the forecasted values to a new column in the DataFrame
+        forecast_df[f"ar_110_h_{h}"] = forecasts
+
+    # forecast_df['Real_obs'] = head_inf_test.values
+
+    return forecast_df
