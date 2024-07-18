@@ -3,7 +3,7 @@
 ## Introduction:
 I forecast HICP German headline inflation using over 600 disaggregated CPI indices, using models designed for high-dimensional cases, including: dimensional reduction techniques - PCR (Principal Component Regression), shrinkage models - Ridge and Lasso, XGBoost, experimenting with different input and preprocessing steps.
 
-My paper: 
+My paper: [https://drive.google.com/file/d/1M_ixf295cfQncFfIYWje2R5ve2huVdBg/view?usp=share_link](url)
 
 ## Folder structure:
 - `data`: includes all of the data and results.
